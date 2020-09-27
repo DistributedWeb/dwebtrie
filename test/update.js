@@ -1,6 +1,6 @@
 const tape = require('tape')
 const create = require('./helpers/create')
-const HypercoreProtocol = require('hypercore-protocol')
+const HypercoreProtocol = require('ddatabase-protocol')
 
 tape('get without alwaysUpdate returns null', t => {
   const trie1 = create()

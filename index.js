@@ -6,7 +6,7 @@ const codecs = require('codecs')
 const bulk = require('bulk-write-stream')
 const toStream = require('nanoiterator/to-stream')
 const isOptions = require('is-options')
-const hypercore = require('hypercore')
+const ddatabase = require('ddatabase')
 const inherits = require('inherits')
 const alru = require('array-lru')
 const set = require('unordered-set')
@@ -23,10 +23,10 @@ const Watch = require('./lib/watch')
 const Diff = require('./lib/diff')
 const { Header } = require('./lib/messages')
 
-module.exports = HyperTrie
+module.exports = DWebTrie
 
-function HyperTrie (storage, key, opts) {
-  if (!(this instanceof HyperTrie)) return new HyperTrie(storage, key, opts)
+function DWebTrie (storage, key, opts) {
+  if (!(this instanceof DWebTrie)) return new DWebTrie(storage, key, opts)
 
   if (isOptions(key)) {
     opts = key
@@ -49,13 +49,13 @@ function HyperTrie (storage, key, opts) {
   this.subtype = opts.subtype
 
   const feedOpts = Object.assign({}, opts, { valueEncoding: 'binary' })
-  this.feed = opts.feed || hypercore(storage, key, feedOpts)
+  this.feed = opts.feed || ddatabase(storage, key, feedOpts)
   this.feed.maxRequests = opts.maxRequests || 256 // set max requests higher since the payload is small
   this.opened = false
   this.ready = thunky(this._ready.bind(this))
 
   this._extension = opts.extension === false ? null : ((opts.extension === true ? null : opts.extension) || new Extension(this))
-  if (this._extension && !this._extension.outgoing) this._extension.outgoing = this.feed.registerExtension('hypertrie', this._extension)
+  if (this._extension && !this._extension.outgoing) this._extension.outgoing = this.feed.registerExtension('dwebtrie', this._extension)
 
   this._watchers = []
   this._checkout = (opts && opts.checkout) || 0
@@ -66,20 +66,20 @@ function HyperTrie (storage, key, opts) {
   if (!this._checkout) this.feed.on('append', this._onappend.bind(this))
 }
 
-inherits(HyperTrie, events.EventEmitter)
+inherits(DWebTrie, events.EventEmitter)
 
-Object.defineProperty(HyperTrie.prototype, 'version', {
+Object.defineProperty(DWebTrie.prototype, 'version', {
   enumerable: true,
   get: function () {
     return this._checkout || this.feed.length
   }
 })
 
-HyperTrie.prototype._removeWatch = function (w) {
+DWebTrie.prototype._removeWatch = function (w) {
   set.remove(this._watchers, w)
 }
 
-HyperTrie.prototype._addWatch = function (w) {
+DWebTrie.prototype._addWatch = function (w) {
   const self = this
 
   set.add(this._watchers, w)
@@ -91,16 +91,16 @@ HyperTrie.prototype._addWatch = function (w) {
   })
 }
 
-HyperTrie.prototype.reconnect = function (from, opts) {
+DWebTrie.prototype.reconnect = function (from, opts) {
   opts = opts ? Object.assign({}, opts, { reconnect: true }) : { reconnect: true }
   return this.diff(from, opts)
 }
 
-HyperTrie.prototype._onerror = function (err) {
+DWebTrie.prototype._onerror = function (err) {
   this.emit('error', err)
 }
 
-HyperTrie.prototype._onappend = function () {
+DWebTrie.prototype._onappend = function () {
   for (var i = 0; i < this._watchers.length; i++) {
     this._watchers[i].update()
   }
@@ -108,7 +108,7 @@ HyperTrie.prototype._onappend = function () {
   this.emit('append')
 }
 
-HyperTrie.prototype._ready = function (cb) {
+DWebTrie.prototype._ready = function (cb) {
   const self = this
 
   this.feed.ready(function (err) {
@@ -116,7 +116,7 @@ HyperTrie.prototype._ready = function (cb) {
 
     if (self.feed.length || !self.feed.writable) return done(null)
     self.feed.append(Header.encode({
-      type: 'hypertrie',
+      type: 'dwebtrie',
       metadata: self.metadata,
       subtype: this.subtype
     }), done)
@@ -165,7 +165,7 @@ HyperTrie.prototype._ready = function (cb) {
   })
 }
 
-HyperTrie.getMetadata = function (feed, cb) {
+DWebTrie.getMetadata = function (feed, cb) {
   feed.get(0, (err, msg) => {
     if (err) return cb(err)
 
@@ -179,23 +179,23 @@ HyperTrie.getMetadata = function (feed, cb) {
   })
 }
 
-HyperTrie.prototype.getMetadata = function (cb) {
-  HyperTrie.getMetadata(this.feed, cb)
+DWebTrie.prototype.getMetadata = function (cb) {
+  DWebTrie.getMetadata(this.feed, cb)
 }
 
-HyperTrie.prototype.setMetadata = function (metadata) {
+DWebTrie.prototype.setMetadata = function (metadata) {
   // setMetadata can only be called before this.ready is first called.
   if (this.feed.length || !this.feed.writable) throw new Error('The metadata must be set before any puts have occurred.')
   this.metadata = metadata
 }
 
-HyperTrie.prototype.replicate = function (isInitiator, opts) {
+DWebTrie.prototype.replicate = function (isInitiator, opts) {
   return this.feed.replicate(isInitiator, opts)
 }
 
-HyperTrie.prototype.checkout = function (version) {
+DWebTrie.prototype.checkout = function (version) {
   if (version === 0) version = 1
-  return new HyperTrie(null, null, {
+  return new DWebTrie(null, null, {
     checkout: version || 1,
     valueEncoding: this.valueEncoding,
     feed: this.feed,
@@ -203,11 +203,11 @@ HyperTrie.prototype.checkout = function (version) {
   })
 }
 
-HyperTrie.prototype.snapshot = function () {
+DWebTrie.prototype.snapshot = function () {
   return this.checkout(this.version)
 }
 
-HyperTrie.prototype.headSeq = function (opts, cb) {
+DWebTrie.prototype.headSeq = function (opts, cb) {
   const self = this
 
   if (!this.opened) return readyAndHeadSeq(this, opts, cb)
@@ -221,7 +221,7 @@ HyperTrie.prototype.headSeq = function (opts, cb) {
   }
 }
 
-HyperTrie.prototype.head = function (opts, cb) {
+DWebTrie.prototype.head = function (opts, cb) {
   if (typeof opts === 'function') return this.head(null, opts)
 
   const self = this
@@ -232,7 +232,7 @@ HyperTrie.prototype.head = function (opts, cb) {
   })
 }
 
-HyperTrie.prototype.list = function (prefix, opts, cb) {
+DWebTrie.prototype.list = function (prefix, opts, cb) {
   if (typeof prefix === 'function') return this.list('', null, prefix)
   if (typeof opts === 'function') return this.list(prefix, null, opts)
 
@@ -247,49 +247,49 @@ HyperTrie.prototype.list = function (prefix, opts, cb) {
   })
 }
 
-HyperTrie.prototype.iterator = function (prefix, opts) {
+DWebTrie.prototype.iterator = function (prefix, opts) {
   if (isOptions(prefix)) return this.iterator('', prefix)
   return new Iterator(this, prefix, opts)
 }
 
-HyperTrie.prototype.createReadStream = function (prefix, opts) {
+DWebTrie.prototype.createReadStream = function (prefix, opts) {
   return toStream(this.iterator(prefix, opts))
 }
 
-HyperTrie.prototype.history = function (opts) {
+DWebTrie.prototype.history = function (opts) {
   return new History(this, opts)
 }
 
-HyperTrie.prototype.createHistoryStream = function (opts) {
+DWebTrie.prototype.createHistoryStream = function (opts) {
   return toStream(this.history(opts))
 }
 
-HyperTrie.prototype.diff = function (other, prefix, opts) {
+DWebTrie.prototype.diff = function (other, prefix, opts) {
   if (Buffer.isBuffer(other)) return this.diff(0, prefix, Object.assign(opts || {}, { checkpoint: other }))
   if (isOptions(prefix)) return this.diff(other, null, prefix)
   const checkout = (typeof other === 'number' || !other) ? this.checkout(other) : other
   return new Diff(this, checkout, prefix, opts)
 }
 
-HyperTrie.prototype.createDiffStream = function (other, prefix, opts) {
+DWebTrie.prototype.createDiffStream = function (other, prefix, opts) {
   return toStream(this.diff(other, prefix, opts))
 }
 
-HyperTrie.prototype.get = function (key, opts, cb) {
+DWebTrie.prototype.get = function (key, opts, cb) {
   if (typeof opts === 'function') return this.get(key, null, opts)
   return new Get(this, key, opts, cb)
 }
 
-HyperTrie.prototype.watch = function (key, onchange) {
+DWebTrie.prototype.watch = function (key, onchange) {
   if (typeof key === 'function') return this.watch('', key)
   return new Watch(this, key, onchange)
 }
 
-HyperTrie.prototype.batch = function (ops, cb) {
+DWebTrie.prototype.batch = function (ops, cb) {
   return new Batch(this, ops, cb || noop)
 }
 
-HyperTrie.prototype.put = function (key, value, opts, cb) {
+DWebTrie.prototype.put = function (key, value, opts, cb) {
   if (typeof opts === 'function') return this.put(key, value, null, opts)
   opts = Object.assign({}, opts, {
     batch: null,
@@ -298,7 +298,7 @@ HyperTrie.prototype.put = function (key, value, opts, cb) {
   return new Put(this, key, value, opts, cb || noop)
 }
 
-HyperTrie.prototype.del = function (key, opts, cb) {
+DWebTrie.prototype.del = function (key, opts, cb) {
   if (typeof opts === 'function') return this.del(key, null, opts)
   opts = Object.assign({}, opts, {
     batch: null
@@ -306,7 +306,7 @@ HyperTrie.prototype.del = function (key, opts, cb) {
   return new Delete(this, key, opts, cb)
 }
 
-HyperTrie.prototype.createWriteStream = function (opts) {
+DWebTrie.prototype.createWriteStream = function (opts) {
   const self = this
   return bulk.obj(write)
 
@@ -316,7 +316,7 @@ HyperTrie.prototype.createWriteStream = function (opts) {
   }
 }
 
-HyperTrie.prototype.getBySeq = function (seq, opts, cb) {
+DWebTrie.prototype.getBySeq = function (seq, opts, cb) {
   if (typeof opts === 'function') return this.getBySeq(seq, null, opts)
   if (seq < 1) return process.nextTick(cb, null, null)
   const self = this
