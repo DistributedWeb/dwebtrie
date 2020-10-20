@@ -6,7 +6,7 @@ Distributed single writer key/value store
 npm install dwebtrie
 ```
 
-[![Build Status](https://travis-ci.org/mafintosh/dwebtrie.svg?branch=master)](https://travis-ci.org/mafintosh/dwebtrie)
+[![Build Status](https://travis-ci.org/distributedweb/dwebtrie.svg?branch=master)](https://travis-ci.org/distributedweb/dwebtrie)
 
 Uses a rolling hash array mapped trie to index key/value data on top of a [ddatabase](https://github.com/distributedweb/ddatabase).
 
