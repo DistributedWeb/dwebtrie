@@ -36,7 +36,7 @@
     "type": "git",
     "url": "https://github.com/distributedweb/dwebtrie.git"
   },
-  "author": "Mathias Buus (@mafintosh)",
+  "author": "Peeps Labs <peepslabs@gmail.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/distributedweb/dwebtrie/issues"
